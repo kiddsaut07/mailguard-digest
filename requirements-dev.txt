@@ -1,0 +1,7 @@
+# Dépendances de développement.
+# Installer avec : python -m pip install -r requirements-dev.txt
+
+-r requirements.txt
+
+# Tests automatisés.
+pytest>=8.0,<9.0

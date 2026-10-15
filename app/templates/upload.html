@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block titre %}Upload a DMARC report — MailGuard Digest{% endblock %}
+
+{% block contenu %}
+  <p class="eyebrow">Import</p>
+  <h1>Upload a DMARC report</h1>
+  <p class="chapeau">
+    Select one aggregate DMARC report in the format
+    <code>{{ formats | join(', ') }}</code>. The file is read in memory, validated, then analyzed
+    on this machine only.
+  </p>
+
+  <section aria-labelledby="limites-import" class="encart">
+    <h2 id="limites-import">Limits applied to the upload</h2>
+    <dl class="limites limites--compact">
+      {% for libelle, valeur in limites.items() %}
+        <div class="limites__ligne">
+          <dt>{{ libelle }}</dt>
+          <dd>{{ valeur }}</dd>
+        </div>
+      {% endfor %}
+    </dl>
+    <p class="note">
+      Anything above these limits is refused. A file is never stored, extracted or executed: only
+      the analysis results are kept, never the XML itself.
+    </p>
+  </section>
+
+  <form
+    class="formulaire"
+    method="post"
+    action="{{ url_for('racine.import_de_rapport') }}"
+    enctype="multipart/form-data"
+  >
+    <input type="hidden" name="jeton_csrf" value="{{ jeton_csrf }}" />
+
+    <div class="champ">
+      <label for="rapport">DMARC report file</label>
+      <input
+        type="file"
+        id="rapport"
+        name="rapport"
+        accept=".xml,.gz,.zip,application/xml,application/zip,application/gzip"
+        required
+      />
+      <p class="note" id="aide-fichier">
+        Accepted formats: {{ formats | join(', ') }}. Any other file type is rejected before the
+        content is read.
+      </p>
+    </div>
+
+    <button class="bouton" type="submit">Analyze this report</button>
+  </form>
+
+  <p class="note">
+    A file is only validated once the server has actually processed it. Importing the exact same
+    file twice does not create a second analysis.
+  </p>
+{% endblock %}

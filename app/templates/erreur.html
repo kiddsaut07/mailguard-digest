@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block titre %}Error — MailGuard Digest{% endblock %}
+
+{% block contenu %}
+  <p class="eyebrow">Error</p>
+  <h1>The analysis could not be completed</h1>
+
+  <div class="alerte alerte--erreur" role="alert">
+    <p>{{ message }}</p>
+  </div>
+
+  {% if code %}
+    <p class="note">Error code: {{ code }}.</p>
+  {% endif %}
+
+  <p>
+    Nothing was saved. You can go back to the overview and try again with another file.
+  </p>
+
+  <p class="appel-action">
+    <a class="bouton bouton--secondaire" href="{{ url_for('racine.accueil') }}">Back to overview</a>
+  </p>
+{% endblock %}

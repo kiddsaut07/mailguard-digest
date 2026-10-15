@@ -1,0 +1,1 @@
+"""Routes HTTP de l'application, enregistrées via une fabrique Flask."""

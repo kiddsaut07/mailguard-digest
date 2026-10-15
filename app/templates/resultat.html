@@ -1,0 +1,371 @@
+{% extends "base.html" %}
+{% block titre %}DMARC analysis result — MailGuard Digest{% endblock %}
+
+{% block contenu %}
+  {% set analyse = resultat.analyse %}
+  {% set briefing = resultat.briefing %}
+  {% set metriques = analyse.metriques %}
+  {% set rapport = analyse.rapports[0] %}
+
+  <p class="eyebrow">Analysis result</p>
+  <h1>DMARC analysis result</h1>
+
+  {% if resultat.deja_importe %}
+    <div class="alerte alerte--doublon" role="status">
+      <p>
+        <strong>This report has already been imported.</strong> The stored analysis is shown below
+        and no new analysis was created.
+      </p>
+    </div>
+  {% endif %}
+
+  {% if resultat.entrees_ignorees %}
+    <div class="alerte alerte--info" role="status">
+      <p>
+        Entries ignored after validation (these are not DMARC reports):
+        {{ resultat.entrees_ignorees | join(', ') }}.
+      </p>
+    </div>
+  {% endif %}
+
+  <section aria-labelledby="identification" class="bloc">
+    <h2 id="identification">Report identification</h2>
+    <dl class="fiche">
+      <div class="fiche__ligne">
+        <dt>Published domain</dt>
+        <dd>
+          {% if analyse.metriques.domaines_publies %}
+            {{ analyse.metriques.domaines_publies | join(', ') }}
+          {% else %}
+            <span class="neutre">Not available in the report</span>
+          {% endif %}
+        </dd>
+      </div>
+      <div class="fiche__ligne">
+        <dt>Reporting organization</dt>
+        <dd>{{ rapport.contexte.organisation }}</dd>
+      </div>
+      <div class="fiche__ligne">
+        <dt>Report identifier</dt>
+        <dd>
+          {% if rapport.contexte.identifiant_rapport %}
+            {{ rapport.contexte.identifiant_rapport }}
+          {% else %}
+            <span class="neutre">Not available in the report</span>
+          {% endif %}
+        </dd>
+      </div>
+      <div class="fiche__ligne">
+        <dt>Reporting period</dt>
+        <dd>
+          {{ rapport.date_debut.strftime('%Y-%m-%d %H:%M') }} UTC to
+          {{ rapport.date_fin.strftime('%Y-%m-%d %H:%M') }} UTC
+          ({{ rapport.duree_secondes }} s)
+        </dd>
+      </div>
+      <div class="fiche__ligne">
+        <dt>Published DMARC policy</dt>
+        <dd>
+          <code>p={{ rapport.politique_publiee }}</code>{% if rapport.politique_sous_domaines_publiee %},
+          <code>sp={{ rapport.politique_sous_domaines_publiee }}</code>{% else %},
+          <span class="neutre">no sp tag declared</span>{% endif %},
+          <code>adkim={{ rapport.alignement_dkim }}</code>, <code>aspf={{ rapport.alignement_spf }}</code>,
+          <code>pct={{ rapport.pourcentage_politique }}</code>
+        </dd>
+      </div>
+      <div class="fiche__ligne">
+        <dt>Uploaded file</dt>
+        <dd>{{ resultat.enregistrement.nom_fichier }}</dd>
+      </div>
+      <div class="fiche__ligne">
+        <dt>SHA-256 fingerprint</dt>
+        <dd><code class="empreinte">{{ resultat.enregistrement.empreinte }}</code></dd>
+      </div>
+      <div class="fiche__ligne">
+        <dt>Import date</dt>
+        <dd>{{ resultat.enregistrement.date_import.strftime('%Y-%m-%d %H:%M') }} UTC</dd>
+      </div>
+    </dl>
+  </section>
+
+  <section aria-labelledby="mesures" class="bloc">
+    <h2 id="mesures">Quantitative summary</h2>
+    <dl class="mesures">
+      <div class="mesures__item">
+        <dt>Total messages</dt>
+        <dd>{{ metriques.total_messages }}</dd>
+      </div>
+      <div class="mesures__item">
+        <dt>Messages evaluated as passing</dt>
+        <dd>
+          {{ metriques.messages_pass }}
+          <span class="mesures__detail">{{ metriques.taux_pass.affichage }}</span>
+        </dd>
+      </div>
+      <div class="mesures__item">
+        <dt>Messages evaluated as failing</dt>
+        <dd>
+          {{ metriques.messages_fail }}
+          <span class="mesures__detail">{{ metriques.taux_fail.affichage }}</span>
+        </dd>
+      </div>
+      <div class="mesures__item">
+        <dt>Reported sources</dt>
+        <dd>{{ analyse.sources | length }}</dd>
+      </div>
+    </dl>
+
+    <h3>Observed dispositions</h3>
+    <dl class="mesures">
+      <div class="mesures__item">
+        <dt>none</dt>
+        <dd>{{ metriques.dispositions.none }}</dd>
+      </div>
+      <div class="mesures__item">
+        <dt>quarantine</dt>
+        <dd>{{ metriques.dispositions.quarantine }}</dd>
+      </div>
+      <div class="mesures__item">
+        <dt>reject</dt>
+        <dd>{{ metriques.dispositions.reject }}</dd>
+      </div>
+    </dl>
+    <p class="note">
+      Dispositions are aggregate requests declared by the receiving server. They do not prove what
+      happened to any individual message.
+    </p>
+  </section>
+
+  <section aria-labelledby="sources" class="bloc">
+    <h2 id="sources">Sources and results</h2>
+    {% if analyse.sources %}
+      <div class="tableau-enveloppe">
+        <table class="tableau">
+          <caption>
+            Messages and evaluated DMARC verdicts per source address
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Source IP</th>
+              <th scope="col">Messages</th>
+              <th scope="col">Pass</th>
+              <th scope="col">Fail</th>
+              <th scope="col">Failure rate</th>
+              <th scope="col">Evaluated SPF<br />pass / fail</th>
+              <th scope="col">Evaluated DKIM<br />pass / fail</th>
+              <th scope="col">Observed dispositions<br />none / qta / rej</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for source in analyse.sources %}
+              <tr>
+                <th scope="row"><code>{{ source.adresse_ip }}</code></th>
+                <td>{{ source.total_messages }}</td>
+                <td>{{ source.messages_pass }}</td>
+                <td>{{ source.messages_fail }}</td>
+                <td>{{ source.taux_fail.affichage }}</td>
+                <td>{{ source.verdis_spf_evalues.reussite }} / {{ source.verdis_spf_evalues.echec }}</td>
+                <td>{{ source.verdis_dkim_evalues.reussite }} / {{ source.verdis_dkim_evalues.echec }}</td>
+                <td>
+                  {{ source.dispositions.none }} / {{ source.dispositions.quarantine }} /
+                  {{ source.dispositions.reject }}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="note">
+        Evaluated SPF and DKIM results come from <code>policy_evaluated</code> and already account
+        for alignment. Raw <code>auth_results</code> are kept separately by the engine and never
+        used to compute these rates.
+      </p>
+    {% else %}
+      <p class="vide">No source is available for this report.</p>
+    {% endif %}
+  </section>
+
+  <section aria-labelledby="constats" class="bloc">
+    <h2 id="constats">Deterministic findings</h2>
+    {% if analyse.constats %}
+      <ul class="constats">
+        {% for constat in analyse.constats %}
+          <li class="constat constat--{{ constat.niveau }}">
+            <p class="constat__entete">
+              <span class="etiquette etiquette--{{ constat.niveau }}">{{ constat.niveau }}</span>
+              {{ constat.titre }}
+            </p>
+            <p class="constat__description">{{ constat.description }}</p>
+            <p class="constat__limite"><strong>Interpretation limit:</strong> {{ constat.limites }}</p>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="vide">No finding was produced for this set of reports.</p>
+    {% endif %}
+  </section>
+
+  <section aria-labelledby="briefing" class="bloc">
+    <h2 id="briefing">Analysis briefing</h2>
+
+    <h3>Summary</h3>
+    <p>{{ briefing.resume_executif }}</p>
+
+    <h3>Key figures</h3>
+    <dl class="fiche">
+      {% for cle in briefing.chiffres_cles %}
+        <div class="fiche__ligne">
+          <dt>{{ cle.libelle }}</dt>
+          <dd>{{ cle.valeur }}</dd>
+        </div>
+      {% endfor %}
+    </dl>
+
+    <h3>Key takeaways</h3>
+    <ul>
+      {% for fait in briefing.a_retenir %}
+        <li>{{ fait }}</li>
+      {% endfor %}
+    </ul>
+
+    <h3>To verify with a human</h3>
+    {% if briefing.points_a_verifier %}
+      <ul>
+        {% for point in briefing.points_a_verifier %}
+          <li>{{ point }}</li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="vide">No specific verification point for this report.</p>
+    {% endif %}
+
+    <h3>Data limitations</h3>
+    <ul>
+      {% for limite in briefing.limites %}
+        <li>{{ limite }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section aria-labelledby="import" class="bloc">
+    <h2 id="import">Import record</h2>
+    <dl class="fiche">
+      <div class="fiche__ligne">
+        <dt>Stored analysis identifier</dt>
+        <dd>{{ resultat.enregistrement.identifiant }}</dd>
+      </div>
+      <div class="fiche__ligne">
+        <dt>Storage status</dt>
+        <dd>
+{% if reconsulte %}
+    <div class="alerte alerte--info" role="status">
+      <p>
+        <strong>Viewing a stored analysis.</strong> These figures, findings and briefing text are
+        the ones saved on
+        {{ resultat.enregistrement.date_import.strftime('%Y-%m-%d %H:%M') }} UTC. Nothing was
+        recomputed and the uploaded XML was never stored.
+      </p>
+    </div>
+  {% endif %}
+
+  {% if resultat.deja_importe %}
+            Already present in the local history
+          {% else %}
+            Saved in the local history
+          {% endif %}
+        </dd>
+      </div>
+      <div class="fiche__ligne">
+        <dt>Stored data</dt>
+        <dd>Analysis results only. The uploaded XML is not stored.</dd>
+      </div>
+      {% if reconsulte %}
+        <div class="fiche__ligne">
+          <dt>Viewing mode</dt>
+          <dd>Stored results, read back from the local database</dd>
+        </div>
+      {% endif %}
+    </dl>
+  </section>
+
+  <section class="narration" aria-labelledby="narration">
+    <h2 id="narration">AI-assisted explanation</h2>
+    <p class="note">
+      Optional local narration. It only rephrases the deterministic findings above: it never
+      calculates, corrects or replaces a figure, a verdict, a policy or a finding.
+      {% if narration.modele %}Model: <code>{{ narration.modele }}</code> served by the local
+      Ollama endpoint.{% endif %}
+    </p>
+
+    {% if narration.disponible %}
+      <div class="alerte alerte--info" role="status">
+        <p>{{ narration.resume }}</p>
+      </div>
+      {% if narration.explications %}
+        <ul class="narration-liste">
+          {% for explication in narration.explications %}
+            <li>
+              <code>{{ explication.finding_id }}</code>
+              — {{ explication.text }}
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      {% if narration.limites %}
+        <h3>Reminders produced by the local model</h3>
+        <ul>
+          {% for limite in narration.limites %}
+            <li>{{ limite }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      <p class="note">
+        The findings and figures in the sections above remain the only authoritative result.
+      </p>
+    {% else %}
+      <p class="vide">
+        {% if narration.statut == "desactive" %}
+          AI narration is disabled in this installation.
+        {% elif narration.statut == "rejete" %}
+          The local model output was rejected by validation, so the deterministic analysis is
+          shown unchanged.
+        {% else %}
+          Local AI is unavailable, so the deterministic analysis is shown unchanged.
+        {% endif %}
+      </p>
+      {% if narration.message %}
+        <p class="note">{{ narration.message }}</p>
+      {% endif %}
+    {% endif %}
+  </section>
+
+  <section class="export" aria-labelledby="export">
+    <h2 id="export">Print and export</h2>
+    <p class="note">
+      These actions apply to stored analysis
+      <strong>{{ resultat.enregistrement.identifiant }}</strong> only. Exports contain the stored
+      results; the uploaded XML is never included.
+    </p>
+    <div class="actions-actions">
+      <button class="bouton bouton--secondaire" type="button" data-action="print">
+        Print report
+      </button>
+      <a
+        class="bouton bouton--secondaire"
+        href="{{ url_for('racine.export_json', identifiant=resultat.enregistrement.identifiant) }}"
+      >
+        Download JSON
+      </a>
+      <a
+        class="bouton bouton--secondaire"
+        href="{{ url_for('racine.export_csv', identifiant=resultat.enregistrement.identifiant) }}"
+      >
+        Download CSV (sources)
+      </a>
+    </div>
+    <p class="note">
+      Printing uses the browser's own print dialog; choose “Save as PDF” there if a PDF file is
+      needed. Without JavaScript, use the browser menu: the printed layout is identical.
+    </p>
+  </section>
+{% endblock %}

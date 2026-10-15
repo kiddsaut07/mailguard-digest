@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block titre %}MailGuard Digest{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+    <script src="{{ url_for('static', filename='js/print.js') }}" defer></script>
+  </head>
+  <body>
+    <a class="lien-evitement" href="#contenu">Skip to main content</a>
+
+    <header class="entete">
+      <div class="entete__interieur">
+        <p class="entete__marque">
+          <a href="{{ url_for('racine.accueil') }}">MailGuard Digest</a>
+        </p>
+        <nav class="entete__navigation" aria-label="Main navigation">
+          <a href="{{ url_for('racine.accueil') }}">Overview</a>
+          <a href="{{ url_for('racine.import_de_rapport') }}">Upload a DMARC report</a>
+          <a href="{{ url_for('racine.historique') }}">History</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="contenu" class="contenu" tabindex="-1">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for categorie, texte in messages %}
+          <div
+            class="alerte {% if categorie == 'erreur' %}alerte--erreur{% else %}alerte--succes{% endif %}"
+            role="status"
+          >
+            <p>{{ texte }}</p>
+          </div>
+        {% endfor %}
+      {% endwith %}
+
+      {% block contenu %}{% endblock %}
+    </main>
+
+    <footer class="pied">
+      <div class="contenu">
+        <p>
+          MailGuard Digest runs entirely on this machine. It sends no email, changes no DNS
+          record and contacts no remote service. Report data stays on this host.
+        </p>
+        <p class="pied__version">Version {{ version_application }}</p>
+      </div>
+    </footer>
+  </body>
+</html>

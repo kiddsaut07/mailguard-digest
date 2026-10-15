@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FIXTURE SYNTHÉTIQUE — aucun rapport client réel. -->
+<!-- Un seul record, trois signatures DKIM brutes et aucun résultat SPF brut. -->
+<feedback>
+  <version>1.0</version>
+  <report_metadata>
+    <org_name>Example Mail Provider</org_name>
+    <report_id>1800000000-cccc3333</report_id>
+    <date_range>
+      <begin>1759276800</begin>
+      <end>1759363200</end>
+    </date_range>
+  </report_metadata>
+  <policy_published>
+    <domain>example.com</domain>
+    <p>none</p>
+  </policy_published>
+  <record>
+    <row>203.0.113.40</row>
+    <count>9</count>
+    <policy_evaluated>
+      <disposition>none</disposition>
+      <dkim>fail</dkim>
+      <spf>fail</spf>
+      <smtp_mailfrom>example.org</smtp_mailfrom>
+    </policy_evaluated>
+    <auth_results>
+      <dkim>
+        <domain>example.com</domain>
+        <selector>sel1</selector>
+        <result>pass</result>
+      </dkim>
+      <dkim>
+        <domain>example.net</domain>
+        <selector>sel2</selector>
+        <result>fail</result>
+        <human_result>signature non valide</human_result>
+      </dkim>
+      <dkim>
+        <domain>example.org</domain>
+        <result>temperror</result>
+      </dkim>
+    </auth_results>
+  </record>
+</feedback>

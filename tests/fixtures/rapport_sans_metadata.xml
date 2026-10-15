@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FIXTURE SYNTHÉTIQUE — section report_metadata absente. -->
+<feedback>
+  <version>1.0</version>
+  <policy_published>
+    <domain>example.com</domain>
+    <p>none</p>
+  </policy_published>
+  <record>
+    <row>192.0.2.10</row>
+    <count>1</count>
+    <policy_evaluated>
+      <disposition>none</disposition>
+      <dkim>pass</dkim>
+      <spf>pass</spf>
+    </policy_evaluated>
+  </record>
+</feedback>

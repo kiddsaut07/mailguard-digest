@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block titre %}Analysis History — MailGuard Digest{% endblock %}
+
+{% block contenu %}
+  <p class="eyebrow">Local history</p>
+  <h1>Analysis History</h1>
+
+  <p class="chapeau">
+    Analyses stored on this machine, most recent first. Only the results are kept: the uploaded
+    XML and archive contents are never stored.
+  </p>
+
+  {% if analyses %}
+    <p class="note">
+      Showing the {{ limite }} most recent analyses of {{ total }} stored
+      {% if total > limite %}
+        — older entries are not listed here.
+      {% else %}
+        .
+      {% endif %}
+    </p>
+
+    <div class="tableau-enveloppe">
+      <table class="tableau tableau--historique">
+        <caption>Stored analyses, newest first</caption>
+        <thead>
+          <tr>
+            <th scope="col">Imported</th>
+            <th scope="col">Published domain</th>
+            <th scope="col">Reporting period</th>
+            <th scope="col">Messages</th>
+            <th scope="col">DMARC pass / fail</th>
+            <th scope="col">Reports</th>
+            <th scope="col">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for analyse in analyses %}
+            <tr>
+              <td>
+                {{ analyse.date_import.strftime('%Y-%m-%d %H:%M') }} UTC
+                <span class="cellule-secondaire">{{ analyse.nom_fichier }}</span>
+              </td>
+              <td>
+                {% if analyse.domaine_publie %}
+                  {{ analyse.domaine_publie }}
+                {% else %}
+                  <span class="neutre">Not available</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if analyse.date_debut and analyse.date_fin %}
+                  {{ analyse.date_debut.strftime('%Y-%m-%d') }} to
+                  {{ analyse.date_fin.strftime('%Y-%m-%d') }}
+                {% else %}
+                  <span class="neutre">Not available</span>
+                {% endif %}
+              </td>
+              <td>{{ analyse.total_messages }}</td>
+              <td>{{ analyse.messages_pass }} / {{ analyse.messages_fail }}</td>
+              <td>{{ analyse.nombre_rapports }}</td>
+              <td class="actions">
+                <a class="lien-action" href="{{ url_for('racine.rapport_stocke', identifiant=analyse.identifiant) }}">
+                  View report
+                  <span class="visuellement-cachee">(analysis {{ analyse.identifiant }})</span>
+                </a>
+                <form
+                  class="formulaire-suppression"
+                  method="post"
+                  action="{{ url_for('racine.supprimer_analyse', identifiant=analyse.identifiant) }}"
+                >
+                  <input type="hidden" name="jeton_csrf" value="{{ jeton_csrf }}" />
+                  <button
+                    class="bouton bouton--danger"
+                    type="submit"
+                    aria-label="Delete the stored analysis {{ analyse.identifiant }}{% if analyse.domaine_publie %} for {{ analyse.domaine_publie }}{% endif %}"
+                  >
+                    Delete
+                  </button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <p class="note">
+      A DMARC pass rate is not a security guarantee, and an isolated failure does not qualify an
+      address as malicious. Open a report to read its findings and their interpretation limits.
+    </p>
+  {% else %}
+    <div class="encart vide-etat">
+      <h2>No stored analysis yet</h2>
+      <p>
+        Nothing has been imported on this machine yet, so the history is empty. Upload an
+        aggregate DMARC report to create the first entry.
+      </p>
+      <p class="appel-action">
+        <a class="bouton" href="{{ url_for('racine.import_de_rapport') }}">Upload a DMARC report</a>
+      </p>
+    </div>
+  {% endif %}
+
+  <p class="appel-action">
+    <a class="bouton bouton--secondaire" href="{{ url_for('racine.import_de_rapport') }}">
+      New analysis
+    </a>
+  </p>
+{% endblock %}

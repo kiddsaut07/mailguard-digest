@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FIXTURE SYNTHÉTIQUE — XML volontairement tronqué. -->
+<feedback>
+  <report_metadata>
+    <org_name>Example Mail Provider</org_name>
+    <date_range>
+      <begin>1759276800</begin>
+      <end>1759363200</end>
+    </date_range>
+  </report_metadata>

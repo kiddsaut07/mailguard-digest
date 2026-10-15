@@ -1,0 +1,17 @@
+# Dépendances d'exécution de MailGuard Digest (Python 3.11+).
+# Installer avec : python -m pip install -r requirements.txt
+
+# Application web locale et gabarits Jinja.
+Flask>=3.0,<4.0
+
+# Validation des objets métier.
+pydantic>=2.7,<3.0
+
+# Lecture des rapports XML non fiables (DTD et entités externes désactivés).
+defusedxml>=0.7.1,<0.8
+
+# Utilisé uniquement pour l'appel local facultatif à Ollama (désactivé par défaut).
+requests>=2.31,<3.0
+
+# Lecture du fichier .env local pour la configuration.
+python-dotenv>=1.0,<2.0

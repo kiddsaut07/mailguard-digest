@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block titre %}MailGuard Digest — local DMARC report analysis{% endblock %}
+
+{% block contenu %}
+  <section class="introduction">
+    <p class="eyebrow">Local DMARC analysis</p>
+    <h1>Understand an aggregate DMARC report</h1>
+    <p class="chapeau">
+      MailGuard Digest reads the aggregate reports produced by receiving mail servers and turns
+      them into verifiable figures and a plain-language briefing. Nothing leaves this machine.
+    </p>
+  </section>
+
+  <section aria-labelledby="formats">
+    <h2 id="formats">What it processes</h2>
+    <p>
+      A report is a single aggregate XML file describing one domain over one period. MailGuard
+      Digest accepts the three formats you are likely to receive:
+    </p>
+    <ul class="liste-formats">
+      {% for format in formats %}
+        <li><code>{{ format }}</code></li>
+      {% endfor %}
+    </ul>
+    <p>
+      A <code>.zip</code> archive may contain several reports as well as directories. Ordinary
+      files that are not DMARC reports are ignored and listed explicitly in the result.
+    </p>
+  </section>
+
+  <section aria-labelledby="workflow">
+    <h2 id="workflow">How an analysis runs</h2>
+    <ol class="etapes">
+      <li>The file is validated, type and size checked before any content is read.</li>
+      <li>Archives are opened in memory, with limits on entries, size and decompressed volume.</li>
+      <li>Each XML report is parsed and validated against the DMARC structure.</li>
+      <li>Deterministic rules compute totals, evaluated verdicts and dispositions.</li>
+      <li>A briefing is written from those figures, and the results are stored locally.</li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="limits">
+    <h2 id="limits">Processing limits</h2>
+    <dl class="limites">
+      {% for libelle, valeur in limites.items() %}
+        <div class="limites__ligne">
+          <dt>{{ libelle }}</dt>
+          <dd>{{ valeur }}</dd>
+        </div>
+      {% endfor %}
+    </dl>
+  </section>
+
+  <section aria-labelledby="portee">
+    <h2 id="portee">Scope and limits of the tool</h2>
+    <ul>
+      <li>
+        The analysis stays local: no upload, no email, no DNS change, no remote API, and no
+        language model is involved.
+      </li>
+      <li>
+        Only the results are stored. The uploaded XML and archive contents are never written to
+        the local database.
+      </li>
+      <li>
+        A DMARC pass is not proof that a domain or an address is safe, and an isolated failure is
+        not proof that an address is malicious.
+      </li>
+      <li>
+        The tool never recommends switching a policy to <code>quarantine</code> or
+        <code>reject</code>: published policy and observed dispositions are only described.
+      </li>
+    </ul>
+  </section>
+
+  <p class="appel-action">
+    <a class="bouton" href="{{ url_for('racine.import_de_rapport') }}">Upload a DMARC report</a>
+    <a class="bouton bouton--secondaire" href="{{ url_for('racine.historique') }}">
+      Open the analysis history
+    </a>
+  </p>
+{% endblock %}

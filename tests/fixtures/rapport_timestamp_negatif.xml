@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FIXTURE SYNTHÉTIQUE — timestamp de début négatif. -->
+<feedback>
+  <version>1.0</version>
+  <report_metadata>
+    <org_name>Example Mail Provider</org_name>
+    <date_range>
+      <begin>-10</begin>
+      <end>1759363200</end>
+    </date_range>
+  </report_metadata>
+  <policy_published>
+    <domain>example.com</domain>
+    <p>none</p>
+  </policy_published>
+  <record>
+    <row>192.0.2.10</row>
+    <count>1</count>
+    <policy_evaluated>
+      <disposition>none</disposition>
+      <dkim>pass</dkim>
+      <spf>pass</spf>
+    </policy_evaluated>
+  </record>
+</feedback>

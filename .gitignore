@@ -1,0 +1,43 @@
+# Environnements Python
+.venv/
+venv/
+env/
+
+# Caches Python et outils
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Packaging
+build/
+dist/
+*.egg-info/
+
+# Secrets et configuration locale
+.env
+.env.*
+!.env.example
+
+# Données locales : base SQLite et rapports importés
+*.sqlite3
+*.sqlite3-journal
+instance/
+data/
+imports/
+uploads/
+
+# Fichiers importés jamais versionnés (données non fiables / confidentielles)
+imported_reports/
+
+# Système et éditeurs
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FIXTURE SYNTHÉTIQUE — aucun rapport client réel. -->
+<feedback xmlns="urn:ietf:params:xml:ns:dmarc-1.0">
+  <version>1.0</version>
+  <report_metadata>
+    <org_name>Example Mail Provider</org_name>
+    <report_id>1800000000-bbbb2222</report_id>
+    <date_range>
+      <begin>1759276800</begin>
+      <end>1759363200</end>
+    </date_range>
+  </report_metadata>
+  <policy_published>
+    <domain>example.com</domain>
+    <adkim>r</adkim>
+    <aspf>r</aspf>
+    <p>none</p>
+  </policy_published>
+  <record>
+    <row>192.0.2.11</row>
+    <count>7</count>
+    <policy_evaluated>
+      <disposition>none</disposition>
+      <dkim>pass</dkim>
+      <spf>pass</spf>
+    </policy_evaluated>
+    <auth_results>
+      <dkim>
+        <domain>example.com</domain>
+        <selector>sel1</selector>
+        <result>pass</result>
+      </dkim>
+      <spf>
+        <domain>example.com</domain>
+        <result>pass</result>
+      </spf>
+    </auth_results>
+  </record>
+</feedback>

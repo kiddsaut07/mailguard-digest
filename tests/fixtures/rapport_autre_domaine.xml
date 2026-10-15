@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FIXTURE SYNTHÉTIQUE — second domaine, pour tester plusieurs contextes. -->
+<feedback>
+  <version>1.0</version>
+  <report_metadata>
+    <org_name>Another Example Mail Provider</org_name>
+    <report_id>1800000000-ffff5555</report_id>
+    <date_range>
+      <begin>1759363200</begin>
+      <end>1759449600</end>
+    </date_range>
+  </report_metadata>
+  <policy_published>
+    <domain>example.net</domain>
+    <adkim>r</adkim>
+    <aspf>r</aspf>
+    <p>none</p>
+  </policy_published>
+  <record>
+    <row>192.0.2.20</row>
+    <count>11</count>
+    <policy_evaluated>
+      <disposition>none</disposition>
+      <dkim>pass</dkim>
+      <spf>pass</spf>
+    </policy_evaluated>
+    <identifiers>
+      <header_from>example.net</header_from>
+    </identifiers>
+  </record>
+</feedback>

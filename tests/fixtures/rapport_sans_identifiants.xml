@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FIXTURE SYNTHÉTIQUE — ni domaine publié ni identifiant de rapport. -->
+<feedback>
+  <version>1.0</version>
+  <report_metadata>
+    <org_name>Test provider without identifier</org_name>
+    <date_range>
+      <begin>1759276800</begin>
+      <end>1759363200</end>
+    </date_range>
+  </report_metadata>
+  <policy_published>
+    <p>reject</p>
+  </policy_published>
+  <record>
+    <row>198.51.100.70</row>
+    <count>3</count>
+    <policy_evaluated>
+      <disposition>none</disposition>
+      <dkim>fail</dkim>
+      <spf>pass</spf>
+    </policy_evaluated>
+    <auth_results>
+      <spf>
+        <domain>example.net</domain>
+        <result>pass</result>
+        <scope>mfrom</scope>
+      </spf>
+    </auth_results>
+  </record>
+</feedback>
