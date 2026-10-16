@@ -58,10 +58,22 @@ MODES_ALIGNEMENT = {
 MAX_DETAIL_VALIDATION = 5
 """Nombre maximal de champs cités dans un message d'erreur, pour rester lisible."""
 
+MAX_RECORDS_PAR_RAPPORT = 10_000
+"""Nombre maximal de `<record>` acceptés dans un rapport agrégé.
+
+La limite est contrôlée **avant** toute construction de modèle, car c'est
+lui, et non le texte XML, qui fixe le coût mémoire : un rapport de 154 000
+records pèse 23 Mio de XML mais environ 630 Mio une fois les objets Pydantic
+construits. La valeur reste très supérieure aux rapports agrégés légitimes
+(quelques centaines à quelques milliers de sources), tout en bornant la
+consommation de mémoire de l'application.
+"""
+
 DESCRIPTIONS_FRANCAISES = {
     "missing": "required field is absent",
     "enum": "value not allowed",
     "string_too_short": "value is empty",
+    "string_too_long": "value is longer than the accepted length",
     "greater_than": "value is too large",
     "greater_than_equal": "value is too small",
     "less_than": "value is too large",
@@ -74,11 +86,17 @@ DESCRIPTIONS_FRANCAISES = {
 """Traduction des refus techniques de Pydantic, afin que l'interface reste française."""
 
 
-def parse_dmarc_report(source: str | bytes) -> DmarcReport:
+def parse_dmarc_report(
+    source: str | bytes, max_records: int = MAX_RECORDS_PAR_RAPPORT
+) -> DmarcReport:
     """Transforme un rapport XML DMARC agrégé en modèle validé.
 
     Lève `ReportParseError` si le document est illisible ou mal formé, et
     `ReportValidationError` si une valeur ne respecte pas `04_DATA_MODEL_AND_DMARC_RULES.md`.
+
+    `max_records` borne le nombre de `<record>` acceptés. Le contrôle précède la
+    lecture du contenu de chaque record : un rapport trop long est refusé sans
+    jamais être converti en objets métier.
     """
     racine = _lire_racine(source)
     _verifier_racine(racine)
@@ -86,7 +104,7 @@ def parse_dmarc_report(source: str | bytes) -> DmarcReport:
     version = _lire_version(racine)
     metadonnees = _lire_metadonnees(_element_obligatoire(racine, "report_metadata"))
     politique = _lire_politique(_element_obligatoire(racine, "policy_published"))
-    records = _lire_records(_elements_obligatoires(racine, "record"))
+    records = _lire_records(_elements_obligatoires(racine, "record"), max_records)
 
     return _valider(
         {
@@ -321,8 +339,19 @@ def _lire_politique(element) -> dict:
     return politique
 
 
-def _lire_records(elements) -> list[dict]:
-    """Liste des records, dans l'ordre du document."""
+def _lire_records(elements, max_records: int) -> list[dict]:
+    """Liste des records, dans l'ordre du document.
+
+    Le nombre de records est vérifié avant toute conversion : au-delà de la
+    limite, le rapport est refusé sans que le contenu des records soit lu ni
+    converti, ce qui borne la mémoire consommée par un document non fiable.
+    """
+    nombre = len(elements)
+    if nombre > max_records:
+        raise ReportValidationError(
+            f"The report contains {nombre} records, the limit is {max_records} "
+            "per report."
+        )
     return [_lire_record(element, index) for index, element in enumerate(elements, 1)]
 
 

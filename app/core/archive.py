@@ -56,7 +56,7 @@ from app.core.errors import (
     UnsafeArchiveError,
 )
 from app.core.models import DmarcReport
-from app.core.parser import parse_dmarc_report
+from app.core.parser import MAX_RECORDS_PAR_RAPPORT, parse_dmarc_report
 
 EXTENSIONS_RAPPORT = (".xml", ".xml.gz")
 """Extensions acceptées pour un rapport DMARC unique."""
@@ -104,12 +104,19 @@ class ImportLimits:
     Les valeurs par défaut reprennent celles de `03_SECURITY_PRIVACY.md` et de
     `.env.example`. `max_upload_bytes` porte sur le fichier téléversé (compressé),
     `max_decompressed_bytes` sur le volume total réellement décompressé.
+
+    `max_records_per_report` borne le nombre de `<record>` par rapport XML. Les
+    trois premières limitescontained la taille des données, pas leur expansion :
+    un rapport de 154 000 records tient dans 680 Kio compressés et occupe
+    pourtant près d'un gigaoctet une fois converti en objets métier. Cette
+    limite est donc indispensable et vérifiée avant la conversion.
     """
 
     max_upload_bytes: int = 10 * 1024 * 1024
     max_decompressed_bytes: int = 50 * 1024 * 1024
     max_archive_members: int = 100
     max_reports: int = 20
+    max_records_per_report: int = MAX_RECORDS_PAR_RAPPORT
 
 
 LIMITES_PAR_DEFAUT = ImportLimits()
@@ -234,13 +241,13 @@ class _Budget:
 def _importer_xml(nom: str, contenu: bytes, limites: ImportLimits) -> ImportResult:
     """Rapport XML unique, transmis tel quel au parseur sécurisé."""
     _Budget(limites.max_decompressed_bytes).consommer(len(contenu), nom)
-    return ImportResult(nom, [_analyser(contenu, nom)])
+    return ImportResult(nom, [_analyser(contenu, nom, limites.max_records_per_report)])
 
 
 def _importer_xml_gz(nom: str, contenu: bytes, limites: ImportLimits) -> ImportResult:
     """Rapport XML compressé en GZIP, décompressé en mémoire par blocs bornés."""
     rapport_xml = _decompresser_gz(nom, contenu, limites)
-    return ImportResult(nom, [_analyser(rapport_xml, nom)])
+    return ImportResult(nom, [_analyser(rapport_xml, nom, limites.max_records_per_report)])
 
 
 def _decompresser_gz(nom: str, contenu: bytes, limites: ImportLimits) -> bytes:
@@ -296,7 +303,13 @@ def _importer_zip(nom: str, contenu: bytes, limites: ImportLimits) -> ImportResu
             if not _est_rapport(entree):
                 ignores.append(entree.filename)
                 continue
-            rapports.append(_analyser(_lire_membre(archive, entree, budget), entree.filename))
+            rapports.append(
+                _analyser(
+                    _lire_membre(archive, entree, budget),
+                    entree.filename,
+                    limites.max_records_per_report,
+                )
+            )
 
     if not rapports:
         raise ArchiveError(f"« {nom} » : the archive contains no usable DMARC report.")
@@ -446,11 +459,11 @@ def _lire_membre(
 # --- Analyse des rapports ----------------------------------------------------
 
 
-def _analyser(contenu: bytes, origine: str) -> DmarcReport:
+def _analyser(contenu: bytes, origine: str, max_records: int) -> DmarcReport:
     """Vérifie le contenu puis délègue au parseur, sans jamais le dupliquer."""
     _exiger_contenu_xml(contenu, origine)
     try:
-        return parse_dmarc_report(contenu)
+        return parse_dmarc_report(contenu, max_records=max_records)
     except MailGuardError as erreur:
         raise type(erreur)(f"Entry « {origine} »: {erreur}") from erreur
 
@@ -476,5 +489,6 @@ __all__ = [
     "ImportLimits",
     "ImportResult",
     "LIMITES_PAR_DEFAUT",
+    "MAX_RECORDS_PAR_RAPPORT",
     "import_reports",
 ]

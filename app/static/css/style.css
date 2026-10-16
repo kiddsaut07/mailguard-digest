@@ -52,6 +52,7 @@ code,
 
 a {
   color: var(--accent);
+  text-underline-offset: 0.18em;
 }
 
 a:hover {
@@ -96,7 +97,7 @@ a:hover {
 .entete__interieur {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 0.5rem 1.5rem;
   padding-top: 0.9rem;
@@ -115,12 +116,66 @@ a:hover {
   color: var(--texte);
 }
 
+/* --- Logo ------------------------------------------------------------------
+   Un seul SVG inline : aucune requête réseau, donc la CSP reste
+   `default-src 'none'` et aucune directive `img-src` n'est nécessaire.
+   Le dessin est masqué aux technologies d'assistance parce que le nom de la
+   marque est écrit juste à côté : le logo est décoratif, le texte porte le nom.
+   `flex: 0 0 auto` + `flex-shrink: 0` garantissent que le logo ne peut jamais
+   être comprimé ni faire déborder la barre d'en-tête. */
+
+.marque {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 100%;
+}
+
+.marque__logo {
+  display: block;
+  flex: 0 0 auto;
+  width: 1.1875rem;
+  height: 1.1875rem;
+  /* Le bouclier est visuellement plus lourd en haut qu'en bas : ce léger
+     décalage l'aligne optiquement sur le texte, et non sur sa boîte. */
+  margin-top: 2px;
+  color: var(--accent);
+  transition: color var(--transition);
+}
+
+.marque__nom {
+  min-width: 0;
+}
+
+.entete__marque a:hover .marque__logo {
+  color: var(--accent-fonce);
+}
+
+@media (max-width: 26rem) {
+  .marque {
+    gap: 0.45rem;
+  }
+
+  .marque__logo {
+    width: 1.0625rem;
+    height: 1.0625rem;
+    margin-top: 1px;
+  }
+}
+
 .entete__navigation {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem 1.25rem;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   font-size: 0.95rem;
+}
+
+.entete__navigation a[aria-current="page"] {
+  font-weight: 600;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.28em;
+  color: var(--accent-fonce);
 }
 
 .contenu {

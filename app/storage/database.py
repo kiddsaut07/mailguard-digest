@@ -386,8 +386,9 @@ class StockageAnalyses:
     def supprimer(self, identifiant: int) -> bool:
         """Supprime une analyse et renvoie `True` si une ligne a été retirée.
 
-        L'interface web devra protéger cette action par CSRF (voir
-        `06_UI_AND_REPORTING.md`) ; aucune route n'existe à ce stade.
+        L'appel HTTP correspondant est `POST /history/<identifiant>/delete`, et
+        il vérifie le jeton CSRF avant d'arriver ici : la suppression n'existe
+        que par cette route, jamais par `GET`.
         """
         with self._connexion(schema_requis=True) as connexion:
             curseur = connexion.execute(
@@ -443,25 +444,32 @@ class StockageAnalyses:
     # --- Connexions -----------------------------------------------------------
 
     def _preparer_repertoire(self) -> None:
-        """Vérifie, et au besoin crée, le répertoire parent du fichier de base."""
+        """Vérifie, et au besoin crée, le répertoire parent du fichier de base.
+
+        Aucun chemin n'est écrit dans le message : `StorageError` est renvoyé
+        tel quel à l'interface par `app.erreurs.message_erreur_metier`, et
+        `03_SECURITY_PRIVACY.md` interdit d'y afficher un chemin privé complet.
+        Le chemin précis reste dans la cause technique et dans le journal du
+        serveur, qui n'est pas exposé au navigateur.
+        """
         parent = self._parametres.chemin.parent
         try:
             if parent.is_dir():
                 return
             if parent.exists():
                 raise StorageError(
-                    f"The path « {parent} » exists but is not a directory."
+                    "The configured database path already exists and is not a directory."
                 )
             if not self._parametres.creer_repertoire:
                 raise StorageError(
-                    f"The directory « {parent} » is missing and its creation is not allowed."
+                    "The history directory is missing and its creation is not allowed."
                 )
             parent.mkdir(parents=True, exist_ok=True)
         except StorageError:
             raise
         except OSError as erreur:
             raise StorageError(
-                f"Le dossier « {parent} » n'a pas pu être préparé pour la base locale."
+                "The history directory could not be prepared for the local database."
             ) from erreur
 
     @contextmanager
@@ -471,11 +479,14 @@ class StockageAnalyses:
         `PRAGMA foreign_keys` est activé par précaution pour les futurs schémas ;
         le journal reste celui par défaut de SQLite, sans mode WAL, afin de ne pas
         multiplier les fichiers annexes de la base.
+
+        Comme `_preparer_repertoire`, aucun message ne contient le chemin de la
+        base : ces messages sont affichables par l'interface.
         """
         chemin = self._parametres.chemin
         if chemin.is_dir():
             raise StorageError(
-                f"The path « {chemin} » is a directory, not a database file."
+                "The configured database path is a directory, not a database file."
             )
         self._preparer_repertoire()
         try:
@@ -483,9 +494,7 @@ class StockageAnalyses:
                 chemin, timeout=self._parametres.timeout_secondes
             )
         except sqlite3.Error as erreur:
-            raise StorageError(
-                f"The local database « {chemin} » could not be opened."
-            ) from erreur
+            raise StorageError("The local history database could not be opened.") from erreur
         try:
             connexion.row_factory = sqlite3.Row
             connexion.execute("PRAGMA foreign_keys = ON")
@@ -499,7 +508,7 @@ class StockageAnalyses:
         except sqlite3.DatabaseError as erreur:
             connexion.rollback()
             raise StorageError(
-                f"The file « {chemin} » is not a usable SQLite database."
+                "The local history file is not a usable SQLite database."
             ) from erreur
         except Exception:
             connexion.rollback()
@@ -535,17 +544,27 @@ def _serialiser(analyse: Analyse, briefing: Briefing) -> dict[str, str]:
     }
 
 
-def _deserialiser(ligne: sqlite3.Row) -> tuple[Analyse, Briefing]:
-    """Relit et revalide les résultats, en refusant une version inconnue."""
-    enveloppe = _lire_enveloppe(ligne["analyse_json"], "analyse")
-    enveloppe_briefing = _lire_enveloppe(ligne["briefing_json"], "briefing")
+def _revalider(enveloppe: dict, cle: str, modele: type) -> object:
+    """Relit une charge utile versionnée et la revalide, ou refuse la ligne.
+
+    Point unique de traduction : toute charge utile illisible, mal formée ou
+    incomplète produit le même `StorageError` explicite, quel que soit l'appelant.
+    Aucun détail du contenu stocké n'est recopié dans le message.
+    """
     try:
-        analyse = Analyse.model_validate(enveloppe["analyse"])
-        briefing = Briefing.model_validate(enveloppe_briefing["briefing"])
+        return modele.model_validate(enveloppe[cle])
     except (KeyError, TypeError, ValueError) as erreur:
         raise StorageError(
             "The stored results are incomplete or invalid; no value was filled in."
         ) from erreur
+
+
+def _deserialiser(ligne: sqlite3.Row) -> tuple[Analyse, Briefing]:
+    """Relit et revalide les résultats, en refusant une version inconnue."""
+    enveloppe = _lire_enveloppe(ligne["analyse_json"], "analyse")
+    enveloppe_briefing = _lire_enveloppe(ligne["briefing_json"], "briefing")
+    analyse = _revalider(enveloppe, "analyse", Analyse)
+    briefing = _revalider(enveloppe_briefing, "briefing", Briefing)
     return analyse, briefing
 
 
@@ -585,9 +604,16 @@ def _ligne_vers_enregistrement(ligne: sqlite3.Row) -> Enregistrement:
 
 
 def _ligne_vers_resume(ligne: sqlite3.Row) -> ResumeAnalyse:
-    """Construit un `ResumeAnalyse` depuis les colonnes et la charge utile stockée."""
+    """Construit un `ResumeAnalyse` depuis les colonnes et la charge utile stockée.
+
+    La revalidation passe par `_revalider`, le même point de traduction que
+    `obtenir()` : une charge utile endommagée produit donc le même `StorageError`
+    explicite partout, et non une exception brute qui rendrait toute la page
+    d'historique inutilisable pour une seule ligne corrompue. Seul `analyse_json`
+    est relu ici, `lister()` ne charge pas la colonne de briefing.
+    """
     enveloppe = _lire_enveloppe(ligne["analyse_json"], "analyse")
-    analyse = Analyse.model_validate(enveloppe["analyse"])
+    analyse = _revalider(enveloppe, "analyse", Analyse)
     debut, fin = _fenetre_couverture(analyse)
     return ResumeAnalyse(
         identifiant=int(ligne["identifiant"]),

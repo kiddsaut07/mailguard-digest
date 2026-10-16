@@ -26,11 +26,17 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Annotated
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.ai.prompts import construire_prompt, constats_a_expliquer, identifiants_transmis
+from app.ai.prompts import (
+    construire_prompt,
+    constats_a_expliquer,
+    identifiants_transmis,
+    selection_constats,
+)
 from app.core.rules import Analyse
 
 MAX_REPONSE_OCTETS = 32 * 1024
@@ -43,10 +49,11 @@ MAX_LIMITES = 6
 """Nombre maximal de limites acceptées."""
 
 LONGUEUR_MAX_TEXTE = 1200
-"""Longueur maximale d'un champ texte de la narration."""
+"""Longueur maximale d'un champ texte de la narration (résumé, explication, limite)."""
 
 LONGUEUR_MAX_PHRASE = 400
-"""Longueur maximale d'une limitation."""
+"""Longueur maximale d'une limitation : les limites sont censées être des
+phrases courtes, pas des paragraphes. La borne est appliquée par le schéma."""
 
 MOTIFS_INTERDITS = re.compile(
     r"(p\s*=\s*(quarantine|reject))"
@@ -93,7 +100,9 @@ class Narration(ModelNarration):
 
     summary: str = Field(min_length=1, max_length=LONGUEUR_MAX_TEXTE)
     explanations: list[Explication] = Field(max_length=MAX_EXPLICATIONS)
-    limitations: list[str] = Field(max_length=MAX_LIMITES)
+    limitations: list[Annotated[str, Field(min_length=1, max_length=LONGUEUR_MAX_PHRASE)]] = Field(
+        max_length=MAX_LIMITES
+    )
 
 
 class ResultatNarration(ModelNarration):
@@ -171,15 +180,19 @@ class ClientOllama:
                 message="There is no finding to explain.",
                 modele=self._parametres.modele,
             )
+        selection = selection_constats(analyse, self._parametres.max_input_chars)
         prompt = construire_prompt(analyse, self._parametres.max_input_chars)
-        if prompt is None:
+        if selection is None or prompt is None:
             return ResultatNarration(
                 statut=StatutNarration.REJETE,
                 message="The configured input limit is too small for this report.",
                 modele=self._parametres.modele,
             )
+        systeme, utilisateur = prompt
 
-        return self._appeler(analyse, prompt, identifiants_transmis(constats))
+        return self._appeler(
+            analyse, (systeme, utilisateur), frozenset(identifiants_transmis(selection))
+        )
 
     # --- Interne -------------------------------------------------------------
 
@@ -199,7 +212,7 @@ class ClientOllama:
         return ""
 
     def _appeler(
-        self, analyse: Analyse, prompt: tuple[str, str], ids: set[str]
+        self, analyse: Analyse, prompt: tuple[str, str], ids: frozenset[str]
     ) -> ResultatNarration:
         """Émet une requête unique et valide strictement la réponse."""
         systeme, utilisateur = prompt
@@ -241,8 +254,15 @@ class ClientOllama:
 
         return self._valider(brut, ids, depart)
 
-    def _valider(self, brut: bytes, ids: set[str], depart: float) -> ResultatNarration:
-        """Valide strictement la réponse du modèle ; à défaut, repli déterministe."""
+    def _valider(
+        self, brut: bytes, ids: frozenset[str], depart: float
+    ) -> ResultatNarration:
+        """Valide strictement la réponse du modèle ; à défaut, repli déterministe.
+
+        `ids` contient les identifiants **réellement transmis** dans le prompt,
+        donc après troncature : un modèle qui cite un constat absent des données
+        reçues voit sa narration entièrement rejetée.
+        """
         modele = self._parametres.modele
         try:
             enveloppe = json.loads(brut.decode("utf-8"))
@@ -324,7 +344,15 @@ def _duree_ms(depart: float) -> int:
 
 
 def _transport_requests(url: str, charge: dict, timeout: float, taille_max: int) -> bytes:
-    """Transport HTTP par défaut : `requests`, sans redirection ni corps illimité."""
+    """Transport HTTP par défaut : `requests`, sans redirection ni corps illimité.
+
+    Les mandataires de l'environnement (`HTTP_PROXY`, `https_proxy`, ...) sont
+    neutralisés : sans cela, `requests` routerait la charge utile vers le
+    mandataire du poste au lieu de l'endpoint de boucle local, ce qui enverrait
+    les constats hors de la machine alors que la configuration n'autorise qu'une
+    adresse locale. Le délai est borné séparément pour la connexion et la lecture,
+    et le corps lu est tronqué à `taille_max + 1` octets.
+    """
     import requests
 
     delai = (min(3.0, timeout), timeout)
@@ -334,6 +362,7 @@ def _transport_requests(url: str, charge: dict, timeout: float, taille_max: int)
         timeout=delai,
         allow_redirects=False,
         stream=True,
+        proxies={"http": None, "https": None},
         headers={"Content-Type": "application/json"},
     )
     try:

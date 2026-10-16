@@ -37,8 +37,28 @@ MessageCount = Annotated[int, Field(strict=True, ge=0)]
 Percentage = Annotated[int, Field(strict=True, ge=0, le=100)]
 """Pourcentage défini par la RFC 7489 : entier de 0 à 100."""
 
-DomainName = Annotated[str, Field(min_length=1)]
+LONGUEUR_TEXTE_MAX = 1024
+"""Longueur maximale d'un texte libre repris d'un rapport.
+
+Les limites de taille de `03_SECURITY_PRIVACY.md` bornent les **octets**, pas
+l'expansion mémoire ni le rendu : un rapport valide dont `org_name` mesure
+50 millions de caractères pèserait 49 Kio compressés, puis 50 Mio en base, dans
+le briefing, dans la page HTML et dans l'export JSON. Aucune valeur de la RFC
+7489 n'est plus longue que cela : un nom d'organisation, un identifiant de
+rapport ou une adresse de contact tiennent largement dans cette borne.
+"""
+
+LONGUEUR_DOMAINE_MAX = 512
+"""Longueur maximale d'un nom de domaine ; la RFC 1035 limite un nom à 253."""
+
+LONGUEUR_COURTE_MAX = 256
+"""Longueur maximale d'un identifiant court : sélecteur DKIM, portée SPF."""
+
+DomainName = Annotated[str, Field(min_length=1, max_length=LONGUEUR_DOMAINE_MAX)]
 """Nom de domaine non vide, tel que publié par le serveur de rapport."""
+
+TexteLibre = Annotated[str, Field(min_length=1, max_length=LONGUEUR_TEXTE_MAX)]
+"""Texte libre non vide repris d'un rapport, de longueur bornée."""
 
 
 def _canonical_ip(value: str) -> str:
@@ -144,7 +164,7 @@ class SpfAuthResult(DmarcModel):
 
     domain: DomainName
     result: SpfResult
-    scope: str | None = None
+    scope: Annotated[str, Field(max_length=LONGUEUR_COURTE_MAX)] | None = None
 
 
 class DkimAuthResult(DmarcModel):
@@ -152,8 +172,8 @@ class DkimAuthResult(DmarcModel):
 
     domain: DomainName
     result: DkimResult
-    selector: str | None = None
-    human_result: str | None = None
+    selector: Annotated[str, Field(max_length=LONGUEUR_COURTE_MAX)] | None = None
+    human_result: Annotated[str, Field(max_length=LONGUEUR_TEXTE_MAX)] | None = None
 
 
 class AuthResults(DmarcModel):
@@ -171,7 +191,7 @@ class Reason(DmarcModel):
     """Motif associé à une disposition évaluée."""
 
     type: ReasonType
-    comment: str | None = None
+    comment: Annotated[str, Field(max_length=LONGUEUR_TEXTE_MAX)] | None = None
 
 
 class PolicyEvaluated(DmarcModel):
@@ -184,7 +204,7 @@ class PolicyEvaluated(DmarcModel):
     disposition: Disposition
     spf: DmarcEvaluation
     dkim: DmarcEvaluation
-    smtp_mailfrom: str | None = None
+    smtp_mailfrom: Annotated[str, Field(max_length=LONGUEUR_DOMAINE_MAX)] | None = None
     reason: list[Reason] = Field(default_factory=list)
 
 
@@ -255,12 +275,12 @@ class DateRange(DmarcModel):
 class ReportMetadata(DmarcModel):
     """Métadonnées déclarées par l'organisation qui publie le rapport."""
 
-    org_name: str
-    report_id: str | None = None
-    email: str | None = None
-    extra_contact_info: str | None = None
+    org_name: TexteLibre
+    report_id: Annotated[str, Field(max_length=LONGUEUR_TEXTE_MAX)] | None = None
+    email: Annotated[str, Field(max_length=LONGUEUR_TEXTE_MAX)] | None = None
+    extra_contact_info: Annotated[str, Field(max_length=LONGUEUR_TEXTE_MAX)] | None = None
     date_range: DateRange
-    error: str | None = None
+    error: Annotated[str, Field(max_length=LONGUEUR_TEXTE_MAX)] | None = None
 
 
 class PublishedPolicy(DmarcModel):
@@ -319,6 +339,10 @@ __all__ = [
     "DmarcReport",
     "DmarcModel",
     "DomainName",
+    "LONGUEUR_COURTE_MAX",
+    "LONGUEUR_DOMAINE_MAX",
+    "LONGUEUR_TEXTE_MAX",
+    "TexteLibre",
     "Identifiers",
     "MessageCount",
     "Percentage",

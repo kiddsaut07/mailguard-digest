@@ -13,12 +13,34 @@
     <header class="entete">
       <div class="entete__interieur">
         <p class="entete__marque">
-          <a href="{{ url_for('racine.accueil') }}">MailGuard Digest</a>
+          <a class="marque" href="{{ url_for('racine.accueil') }}">
+            <svg
+              class="marque__logo"
+              viewBox="0 0 24 24"
+              width="22"
+              height="22"
+              fill="currentColor"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M12 2 21 5.8V12c0 5.4-3.6 9.2-9 11.2-5.4-2-9-5.8-9-11.2V5.8Z
+                   M7.3 9.8v1.8h8.5V9.8Z
+                   M7.3 13v1.8h6.4V13Z
+                   M7.3 16.2v1.8h4.2v-1.8Z"
+              />
+            </svg>
+            <span class="marque__nom">MailGuard Digest</span>
+          </a>
         </p>
         <nav class="entete__navigation" aria-label="Main navigation">
-          <a href="{{ url_for('racine.accueil') }}">Overview</a>
-          <a href="{{ url_for('racine.import_de_rapport') }}">Upload a DMARC report</a>
-          <a href="{{ url_for('racine.historique') }}">History</a>
+          <a href="{{ url_for('racine.accueil') }}"
+            {%- if request.endpoint == 'racine.accueil' %} aria-current="page"{% endif %}>Overview</a>
+          <a href="{{ url_for('racine.import_de_rapport') }}"
+            {%- if request.endpoint == 'racine.import_de_rapport' %} aria-current="page"{% endif %}>Upload a DMARC report</a>
+          <a href="{{ url_for('racine.historique') }}"
+            {%- if request.endpoint in ('racine.historique', 'racine.rapport_stocke', 'racine.supprimer_analyse') %} aria-current="page"{% endif %}>History</a>
         </nav>
       </div>
     </header>

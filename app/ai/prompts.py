@@ -53,6 +53,22 @@ def constats_a_expliquer(analyse: Analyse) -> list[Constat]:
     return list(analyse.constats[:MAX_CONSTATS_ENVOYES])
 
 
+def selection_constats(analyse: Analyse, max_chars: int) -> list[Constat] | None:
+    """Constats qui tiennent réellement dans `max_chars`, ou `None` si aucun ne tient.
+
+    Source de vérité unique de la sélection : `construire_prompt` l'utilise pour
+    assembler le message, et le client Ollama l'utilise pour savoir quels
+    identifiants ont **effectivement** été transmis. Sans cette sélection unique,
+    la validation accepterait un constat que la troncature a écarté.
+    """
+    for nombre in range(min(MAX_CONSTATS_ENVOYES, len(analyse.constats)), 0, -1):
+        constats = list(analyse.constats[:nombre])
+        _systeme, corps = _assembler(constats, len(analyse.constats) - nombre)
+        if len(SYSTEM_PROMPT) + len(corps) <= max_chars:
+            return constats
+    return None
+
+
 def construire_prompt(analyse: Analyse, max_chars: int) -> tuple[str, str] | None:
     """Retourne `(system, user)` borné par `max_chars`, ou `None` si rien ne tient.
 
@@ -64,13 +80,12 @@ def construire_prompt(analyse: Analyse, max_chars: int) -> tuple[str, str] | Non
     Troncature déterministe : les constats sont retirés par la fin, dans l'ordre
     inverse de priorité, jusqu'à tenir dans la limite. `None` signifie que même le
     premier constat ne tient pas : l'appel est alors refusé, sans requête réseau.
+    La sélection correspondante est obtainable par `selection_constats`.
     """
-    for nombre in range(min(MAX_CONSTATS_ENVOYES, len(analyse.constats)), 0, -1):
-        constats = list(analyse.constats[:nombre])
-        systeme, corps = _assembler(constats, len(analyse.constats) - nombre)
-        if len(systeme) + len(corps) <= max_chars:
-            return systeme, corps
-    return None
+    constats = selection_constats(analyse, max_chars)
+    if constats is None:
+        return None
+    return _assembler(constats, len(analyse.constats) - len(constats))
 
 
 def identifiants_transmis(constats: Sequence[Constat]) -> set[str]:
@@ -112,4 +127,5 @@ __all__ = [
     "construire_prompt",
     "constats_a_expliquer",
     "identifiants_transmis",
+    "selection_constats",
 ]

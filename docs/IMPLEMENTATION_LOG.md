@@ -3,7 +3,7 @@
 Ce journal est mis à jour à la fin de chaque étape de `PROMPTS_ETAPES.md`.
 Il n'y contient que des commandes réellement exécutées et des résultats observés.
 
-Dernière mise à jour : 2026-10-16 (étape 10)
+Dernière mise à jour : 2026-10-16 (étape 12)
 
 ## 1. Audit initial de l'environnement
 
@@ -79,7 +79,7 @@ Initialisation Git demandée explicitement par l'utilisateur et effectuée :
 git init
 ```
 
-Résultat observé : `Dépôt Git vide initialisé dans /home/kiddy/Téléchargements/mailguard-digest/.git/`.
+Résultat observé : `Dépôt Git vide initialisé dans <répertoire-du-projet>/.git/`.
 Aucun fichier supprimé ni écrasé. `git status --short` ne liste que les fichiers non suivis et
 n'affiche ni `.venv/` ni `.pytest_cache/` : les exclusions du `.gitignore` sont vérifiées
 comme efficaces. Aucun commit n'a été créé, en attente de l'accord de l'utilisateur.
@@ -874,6 +874,161 @@ Limites connues :
 - La concurrence est limitée par un verrou global simple : une seule narration à la fois, les autres
   recevant un statut « indisponible ».
 
+## 3 duodecies. Étape 11 — Audit sécurité et intégration (2026-10-16)
+
+Le rapport complet se trouve dans `docs/SECURITY_AUDIT.md` ; cette section n'en
+donne que la synthèse.
+
+Fichiers créés ou modifiés :
+
+| Fichier | Raison |
+| --- | --- |
+| `docs/SECURITY_AUDIT.md` | Rapport d'audit : environnement, méthodologie, exigences vérifiées, résultats classés par sévérité, mesures, tests, ce qui n'a pas été vérifié, risques résiduels. |
+| `app/core/parser.py` | `MAX_RECORDS_PAR_RAPPORT` et contrôle du nombre de `<record>` **avant** la conversion (F1) ; message dédié pour `string_too_long`. |
+| `app/core/models.py` | Longueurs maximales sur tous les champs texte libres (F2). |
+| `app/core/archive.py` | `ImportLimits.max_records_per_report`, propagé au parseur pour les trois formats. |
+| `app/config.py` | Champ `max_records_per_report`, variable `MAILGUARD_MAX_RECORDS_PER_REPORT`, limite affichée sur la page d'import. |
+| `.env.example` | Nouvelle variable, avec l'explication de pourquoi une limite en octets ne suffit pas. |
+| `app/storage/database.py` | Messages `StorageError` sans chemin (F3) ; point de traduction unique `_revalider` pour `lister()` comme pour `obtenir()` (F4) ; docstring de `supprimer()` remise à jour (F8). |
+| `app/ai/prompts.py` | `selection_constats()` devient la source de vérité unique de la sélection (F5). |
+| `app/ai/ollama_client.py` | Validation sur les identifiants réellement transmis (F5) ; mandataires d'environnement neutralisés (F6) ; `LONGUEUR_MAX_PHRASE` effectivement appliquée (F9). |
+| `tests/test_audit_etape11.py` | 41 tests de régression d'audit. |
+| `README.md`, `DECISIONS.md` | Limite nouvelle documentée ; promesse d'import du paquet IA ramenée à ce qui est vrai (F7) ; mandataires d'environnement documentés ; notes d'exploitation. |
+
+Six défauts confirmés ont été corrigés. Tous ont d'abord été **mesurés** avant
+correction :
+
+| # | Sévérité | Défaut | Mesure avant | Après |
+| --- | --- | --- | --- | --- |
+| F1 | Élevée | Nombre de `record` non borné | `.xml.gz` de 660 Kio → **945 Mio de RSS**, 17 s | refusé en 2,35 s, **35 Mio** |
+| F2 | Élevée | Longueurs de texte non bornées | `org_name` de **51 380 224 caractères** accepté, stocké, rendu, exporté | refusé (`org_name`, domaines, `comment`, `email`, `report_id`) |
+| F3 | Moyenne | Chemin de la base dans la réponse HTTP | `The file « /tmp/.../audit.sqlite3 » is not a usable SQLite database.` | message sans chemin ; cause et journal inchangés |
+| F4 | Moyenne | `/history` en 500 sur une ligne corrompue | `KeyError: 'analyse'`, trace journalisée | 503 avec message métier, comme le rapport concerné |
+| F5 | Moyenne | Narration référençant un constat non transmis | `max_input_chars=2000`, prompt de 1 constat, sortie **acceptée** | rejetée (`referenced a finding that does not exist`) |
+| F6 | Moyenne | `HTTP_PROXY` capté par `requests` | `{'http': 'http://mandataire.interne:3128'}` | `proxies={'http': None, 'https': None}` |
+
+Deux points de faible gravité ont aussi été corrigés (F8 docstring obsolète,
+F9 constante inutilisée). Un point de faible gravité a été **documenté sans être
+corrigé** : F7, le paquet `app/ai` est chargé sur le chemin HTTP même lorsque la
+narration est désactivée, ce qui contreditait une phrase du README. Aucune
+dépendance supplémentaire n'a été introduite.
+
+Chemin d'audit également vérifié sans défaut : DTD/entités/XXE/billion-laughs,
+XML très profond, chemins ZIP piégés, membres chiffrés et liens symboliques,
+GZIP/ZIP corrompus, échappement XSS, injection d'en-tête HTTP, injection de
+formule CSV, CSP et en-têtes, CSRF inter-sessions, suppression par GET, doublons,
+SQL paramétré et rollback, revalidation à la lecture, absence de `|safe`, de
+`Markup` et de `shell=True`.
+
+Vérification en conditions réelles (serveur de boucle locale sur le port 5111,
+base temporaire `/tmp/.../h.sqlite3`, fixtures synthétiques, serveur arrêté à la
+fin ; la base `data/` du dépôt n'a jamais été créée) : import `.xml`, `.xml.gz`
+et `.zip` (200), stockage (3 puis 4 lignes), relecture d'un rapport stocké,
+exports JSON (`total_messages` `int` = 167, `taux_pass.valeur` `float` =
+85.02994011976048, `failure_rate_percent` **vide** pour la source à 0 message) et
+CSV (5 lignes relues par `csv.reader`), suppression GET → 405, POST sans jeton →
+400, POST avec jeton d'une autre session → 400 et base inchangée, POST valide →
+302, IA désactivée sans aucune requête et sans mention d'Ollama dans le journal,
+IA activée sans serveur → « Local AI is unavailable » / `ConnectionError` avec
+mesures conservées, timeout de lecture borné à 2,10 s pour 2,0 s demandés.
+
+Dépendances : aucun outil d'audit n'était installé et aucun n'a été ajouté. Le
+réseau étant disponible, l'API OSV a été interrogée directement avec `urllib` :
+22 avis sur 17 paquets, **aucun n'affecte les versions installées** après
+vérification des plages `fixed` / `last_affected`.
+
+Résultats réels des commandes demandées :
+
+| Commande | Résultat observé |
+| --- | --- |
+| `.venv/bin/python -m pytest -q` (avant, base de référence) | `376 passed in 5.10s`, code de sortie 0 — **vérifié indépendamment**, non repris de l'étape 10. |
+| `.venv/bin/python -m compileall -q app tests` (avant) | Code de sortie 0, aucune sortie. |
+| `.venv/bin/python -m pytest -q tests/test_audit_etape11.py` | `41 passed`, code de sortie 0. |
+| `.venv/bin/python -m pytest -q` (après, dernière modification) | `417 passed`, code de sortie 0. |
+| `.venv/bin/python -m compileall -q app tests` (après) | Code de sortie 0, aucune sortie. |
+
+Aucun test existant n'a été supprimé, marqué `skip` ni affaibli. Les 41 tests
+d'avant ont échoué (59 échecs) pendant l'application des correctifs, puis sont
+repassés à l'identique.
+
+Limites assumées, signalées plutôt que masquées :
+
+- **Aucun modèle réel n'a été téléchargé ni exécuté.** La compatibilité de l'API
+  `/api/chat` d'Ollama reste non vérifiée en ligne ; tous les tests d'adaptateur
+  utilisent un transport simulé. Un test simulé ne prouve pas la compatibilité
+  avec un modèle réel.
+- **Aucun test visuel dans un navigateur** : feuille de style, rendu des couleurs,
+  mise en page responsive et aperçu d'impression non vérifiés à l'œil.
+- La limite de 10 000 records par rapport est une convention, pas une donnée du
+  standard ; elle est configurable.
+- Le paquet `app/ai` reste chargé sur le chemin HTTP même désactivé (F7), sans
+  impact de confidentialité.
+- Le chemin de la base apparaît dans le journal console du serveur, jamais dans
+  l'interface.
+- `pytest -q` renvoie 0 test ignoré ; aucun test n'est marqué `skip` ou `xfail`.
+
+## 3 quaterdecies. Réécriture du README (2026-10-16, après l'étape 12)
+
+À la demande explicite de l'utilisateur, `README.md` a été **réécrit depuis zéro**
+sur le plan de la forme et de la mise en page. **Aucun code, test, gabarit, style,
+schéma ni dépendance n'a été touché** ; toutes les affirmations vérifiées ont été
+conservées, et deux omissions introduites pendant la réécriture ont été détectées
+par un contrôle de non-régression puis rétablies.
+
+Structure obtenue (638 lignes) :
+
+| Élément | Détail |
+| --- | --- |
+| En-tête | Titre, signature, **6 badges** (Python, Flask, licence, IA locale, confidentialité) |
+| Sommaire | 14 entrées avec **ancres HTML explicites** (`<a id="...">`), donc fonctionne sur GitHub, GitLab et GitLab self-hosted sans dépendre du calcul d'ancre sur emoji |
+| Sécurité | Tableau des 10 garanties + bloc dépliable « ce que l'application n'est **pas** » |
+| Démarrage | 5 commandes commentées, encadré de démarrage, URL en grand |
+| Architecture | **Diagramme Mermaid** `graph TD` à 5 sous-graphiques colorés + tableau des responsabilités de modules |
+| Pipeline | **Diagramme Mermaid** `flowchart LR` du chemin complet, avec sorties d'erreur colorées |
+| Fonctionnalités | Formats acceptés / refusés, tableau des formules métriques, distinction évalué ≠ brut, liste des constats |
+| Routes | Tableau des 10 routes avec colonne CSRF + **diagramme Mermaid** `stateDiagram-v2` du cycle de vie |
+| Configuration | Tableau des 18 variables avec pictogrammes obligatoire / facultatif / si IA activée |
+| Tests | Commandes, tableau de résultats datés, tableau des 9 suites avec leur nombre de tests |
+| IA | Procédure d'activation, diagnostic, tableau des garanties, statut explicite sur le modèle réel |
+| Impression / exports | Les trois mechanisms + enveloppe JSON + colonnes CSV |
+| Dépannage | 22 symptômes → cause → solution, sans jamais désactiver une protection |
+| Limites | Sous-sections sécurité / ressources / IA / non vérifié / choix assumés |
+| Verdict | **Diagramme Mermaid** de la montée en préparation + tableau des trois catégories |
+| Kit | Les 11 documents du contrat + les 4 documents projet |
+| Langue | UI anglaise, commentaires français, identifiants inchangés |
+
+Vérifications réellement exécutées :
+
+| Contrôle | Résultat observé |
+| --- | --- |
+| Blocs Mermaid extraits | 4, tous syntaxiquement équilibrés (subgraph/end, parenthèses, nœuds, flèches) |
+| **Rendu Mermaid réel** via `mermaid.ink` | `architecture` HTTP 200 (27 Kio), `pipeline` HTTP 200 (203 Kio), `routes` HTTP 200 (40 Kio), `verdict` HTTP 200 (13 Kio) — **les quatre se rendent** |
+| Tableaux Markdown | 17 détectés, 0 ligne sans séparateur, 0 largeur de cellule incohérente (après suppression d'un `\|` ambigu) |
+| Ancres du sommaire | 15 déclarées, 14 liens, **0 lien cassé** |
+| Non-régression des faits | 31 marqueurs vérifiés ; 4 absents analysés, dont **2 omissions réelles rétablies** : `pip install .` échoue faute de `[build-system]`, et `requirements.txt` pour le runtime seul |
+| Valeurs publiées contre le code | 16/16 conformes (hôte, port, les 6 limites, les 7 réglages IA, limite d'historique) |
+| Comptage des tests publié | 9 fichiers recomptés : 37+34+59+36+19+41+111+39+41 = **417** |
+| `git diff --check -- README.md` | code de sortie 0 ; 0 espace en fin de ligne, 0 tabulation, 0 caractère CJK parasite |
+| `.venv/bin/python -m pytest -q` | `417 passed`, code de sortie 0 |
+| `.venv/bin/python -m compileall -q app tests` | code de sortie 0 |
+
+Choix de forme et leurs limites, signalés :
+
+- **Animation.** Les quatre diagrammes sont **statiques** : Markdown ne permet pas
+  d'animation. Une animation exigerait une ressource distante (GIF, `<img>` externe),
+  ce qui contredirait le principe « local-first, aucune ressource distante » du
+  projet. Les diagrammes Mermaid sont ici le compromis maximal compatible avec cet
+  engagement.
+- **Badges.** Les 6 badges sont les **seules** ressources distantes du README, et
+  uniquement sur GitHub. Le texte reste complet et lisible hors ligne.
+- **Langue.** L'interface du produit reste en anglais ; le README est désormais en
+  anglais comme l'interface, avec les identifiants internes conservés.
+
+Limites assumées : le rendu des badges, des couleurs d'<div align="center"> et des
+diagrammes Mermaid **dépend du moteur d'affichage** ; ce n'est pas vérifié dans un
+navigateur, aucun n'étant disponible dans cet environnement. Le contenu textuel,
+lui, reste intégralement lisible partout.
+
 ## 4. Avancement des étapes
 
 | Étape | Titre | Statut | Commentaire |
@@ -889,8 +1044,122 @@ Limites connues :
 | 8 | Historique | Terminée | `/history`, `/history/<id>`, `/history/<id>/delete` (POST + CSRF), 27 tests ajoutés. `pytest -q` : 309 passed. |
 | 9 | Export | Terminée | Impression native, `export.json` versionné, `export.csv` des sources, 18 tests. `pytest -q` : 327 passed. |
 | 10 | IA locale facultative | Terminée | `app/ai/` (client + prompts), configuration `MAILGUARD_OLLAMA_*`, 49 tests. `pytest -q` : 376 passed. Aucun modèle réel exécuté. |
-| 11 | Audit sécurité et intégration | Non commencée | — |
-| 12 | Audit final | Non commencée | — |
+| 11 | Audit sécurité et intégration | Terminée | `docs/SECURITY_AUDIT.md`, 6 défauts confirmés corrigés (F1–F6), 41 tests de régression. `pytest -q` : 417 passed. Vérification réelle sur serveur de boucle locale. |
+| 12 | Audit final | Terminée | `docs/FINAL_ACCEPTANCE_AUDIT.md` : 22 critères DoD audités (**0 FAIL**, 2 PARTIAL), guide Kali reproductible, verdict de préparation. `pytest -q` : **417 passed**, y compris dans un environnement virtuel neuf. README réécrit (voir §3 quaterdecies). |
+
+## 3 tredecies. Étape 12 — Audit d'acceptation final (2026-10-16)
+
+Étape de **vérification et de documentation** : aucun code métier, schéma de base,
+test, gabarit, style ou dépendance n'a été modifié.
+
+Fichiers créés ou modifiés :
+
+| Fichier | Raison |
+| --- | --- |
+| `docs/FINAL_ACCEPTANCE_AUDIT.md` | Audit d'acceptation : périmètre et environnement, matrice des 22 critères de `08_DEFINITION_OF_DONE.md` avec statut et preuve, guide Kali complet, frontière de sécurité, résultats de vérification, verdict de préparation, actions priorisées. |
+| `README.md` | Corrections d'affirmations fausses ou incomplètes (voir ci-dessous) et renvoi vers le guide. |
+| `docs/SECURITY_AUDIT.md` | Correction de F10, dont l'affirmation s'est révélée inexacte à l'exécution. |
+| `docs/IMPLEMENTATION_LOG.md` | Cette section et la ligne d'avancement. |
+
+Ce qui n'a **pas** été vérifié par reprise d'un rapport antérieur : chaque case a
+été contrôlée par exécution. Points notables de l'audit :
+
+1. **Aucune case `FAIL`.** 20 `PASS`, 2 `PARTIAL` (IA sans modèle réel ; README
+   avant correction), sur 22 critères applicables. Les exigences de
+   `05_TEST_STRATEGY.md` et de `03_SECURITY_PRIVACY.md` sont toutes couvertes.
+2. **`PROMPT_DE_DEMARRAGE.txt`** (README §Documents, point 11) : **absent**, déjà
+   signalé, toujours signalé.
+3. **Les documents du kit sont à la racine, pas dans `docs/`.** `docs/ARCHITECTURE.md`,
+   `docs/TEST_STRATEGY.md` et `docs/SECURITY_PRIVACY.md` n'existent pas ; les
+   équivalents réels sont `02_ARCHITECTURE.md`, `05_TEST_STRATEGY.md` et
+   `03_SECURITY_PRIVACY.md`. Signalé, non substitué silencieusement.
+4. **`pyproject.toml` n'est pas installable en paquet** : aucune table
+   `[build-system]`, donc `pip install .` échoue. C'est un choix assumé (exécution
+   depuis les sources, `pyproject.toml:28-29`) ; le guide indique désormais la
+   seule méthode supportée.
+5. **Installation reproduite de zéro** dans un environnement virtuel neuf créé à
+   cette étape : `python3 -m venv` puis `pip install -r requirements-dev.txt`
+   (25 paquets, code de sortie 0), puis suite complète. Cela confirme que le
+   chemin documenté est reproductible, et pas seulement hérité.
+6. **« Fonctionne sans Internet » démontré activement** : le parcours complet
+   (import, historique, relecture, exports, CSS, JS) a été exécuté avec
+   `socket.connect` et `socket.getaddrinfo` modifiés pour lever sur toute
+   destination hors boucle locale. Résultat : tous HTTP 200, **aucune tentative
+   de connexion sortante**.
+7. **Le paquet IA n'est pas chargé par le cœur** : `GET /history` seul ne charge
+   pas `app.ai` ; `POST /upload` et `GET /history/<id>` le chargent pour construire
+   le statut neutre (constat F7, inchangé).
+8. **Une affirmation de `docs/SECURITY_AUDIT.md` était fausse** : F10 affirmait que
+   le chemin de la base apparaissait dans le journal console. Exécution : le
+   niveau du logger Flask est `NOTSET`, niveau effectif `WARNING`, la ligne `INFO`
+   n'est **jamais émise**. Corrigé. Effet de bord documenté : aucune confirmation
+   positive d'initialisation de la base, d'où la méthode de vérification par
+   HTTP 200 + existence du fichier `.sqlite3`.
+
+Corrections documentaires apportées au `README.md` (uniquement des affirmations
+fausses, incomplètes ou dangereuses) :
+
+| Avant | Après |
+| --- | --- |
+| « À ce jour, `pytest -q` renvoie le code de sortie 5 (aucun test collecté…) » — phrase de l'étape 0 restée en place et contredisant les lignes suivantes | Tableau de résultats datés, avec mention explicite que la ligne « étape 0 » est historique |
+| Installation sans activation de l'environnement virtuel | Ajout de `source .venv/bin/activate`, de la variante `.venv/bin/python`, et de l'avertissement « ne jamais utiliser `sudo pip install` » |
+| Aucune mention de l'échec de démarrage sans `.env` | Comportement vérifié (code de sortie 1, message `FLASK_SECRET_KEY is missing`) documenté comme normal |
+| Aucune mention de la confirmation de démarrage | Ajout d'une méthode de vérification par `curl` et par le fichier SQLite, avec le fait qu'aucun endpoint de santé n'existe |
+| Aucune consigne sur `MAILGUARD_HOST` | Avertissement explicite : ne pas l'ouvrir, l'application n'a pas d'authentification et la suppression serait alors accessible à tout le réseau |
+| Dépendances « raisonnables » sans détail | Dépendances listées, plus l'absence de lint/type-check configuré |
+
+Résultats réels des commandes demandées :
+
+| Commande | Résultat observé | Code de sortie |
+| --- | --- | --- |
+| `git status --short` | 11 fichiers modifiés (étape 11), 2 non suivis ; aucun travail utilisateur préexistant | — |
+| `python3 --version` | `Python 3.13.12` | 0 |
+| `python3 -m venv /tmp/opencode/verif-venv` | environnement créé | 0 |
+| `/tmp/opencode/verif-venv/bin/python -m pip install -r requirements-dev.txt` | `Successfully installed Flask-3.1.3 … werkzeug-3.1.9` (25 paquets) | 0 |
+| `/tmp/opencode/verif-venv/bin/python -m pytest -q` | **`417 passed in 6.26s`** | **0** |
+| `/tmp/opencode/verif-venv/bin/python -m compileall -q app tests` | aucune sortie | **0** |
+| `.venv/bin/python -m pytest -q` | **`417 passed in 6.00s`** | **0** |
+| `.venv/bin/python -m compileall -q app tests` | aucune sortie | **0** |
+| `.venv/bin/python -m app.main` sans `.env` | `ConfigurationErreur: FLASK_SECRET_KEY is missing…` | **1** (attendu) |
+| `FLASK_SECRET_KEY=<jeton> MAILGUARD_DATABASE_PATH=/tmp/… MAILGUARD_PORT=5123 python -m app.main` | serveur démarré, `ss -tlnp` : `LISTEN 127.0.0.1:5123` uniquement | — |
+| Parcours web réel (3 imports, historique, relecture, exports, doublon, suppression) | tous HTTP 200, 3 lignes en base puis 2 après suppression, messages « already been imported » et « The stored analysis was deleted. » | — |
+| `curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:5000/` | `200` | — |
+| Contrôle d'invariance DMARC sur les 25 fixtures | 18 refusées au bon type d'erreur, 7 acceptées, `pass+fail=total`, `Σdispositions=total`, invariant par source, `taux is None ⟺ total==0` — **tous vrais** | — |
+| `git check-ignore` sur 15 motifs de `.gitignore` | 14 `IGNORE` ; un `.xml.gz` à la racine du dépôt n'est pas ignoré (signalé) | — |
+| `git diff --check` | aucun défaut d'espace | 0 |
+| Audit des dépendances | **non re-interrogé à cette étape** (résultats de l'étape 11 via API OSV, inchangés) | — |
+
+Vérifications **impossibles** dans cet environnement, et donc non revendiquées :
+intégration avec un vrai modèle Ollama (`ollama` absent du poste), rendu visuel et
+aperçu d'impression (aucun navigateur), mesure de contraste WCAG (aucun outil),
+isolation réseau au niveau noyau (pas de `sudo`). Le statut
+`NOT TESTED — real Ollama/model integration` est explicite dans le README et dans
+le rapport d'acceptation.
+
+Intégrité et propreté vérifiées : `data/` jamais créé dans le dépôt ; aucun
+`rapport réel client` utilisé ; aucun enregistrement dans une base utilisateur (bases
+temporaires sous `/tmp` uniquement) ; `.env` ni créé ni modifié ; aucun modèle
+téléchargé, aucun service IA lancé, aucune requête IA émise ; aucun test supprimé,
+`skip`, `xfail` ou affaibli ; **aucun commit, aucune étiquette, aucun `push`** ; les
+modifications non commitées de l'étape 11 ont été conservées intactes.
+
+Limites assumées, signalées plutôt que masquées :
+
+- **L'intégration IA avec un vrai modèle reste non vérifiée.** Les tests
+  d'adaptateur utilisent un transport simulé ; le repli déterministe, lui, a été
+  vérifié en conditions réelles (connexion refusée, timeout borné).
+- **Aucun contrôle visuel.** La feuille de style, le script d'impression et les
+  règles `@media print` existent et sont servis en 200, mais la mise en page
+  imprimée et le contraste n'ont pas été vus ni mesurés.
+- **Le niveau de journalisation de Flask n'a pas été modifié.** Corriger
+  l'absence de confirmation d'initialisation de la base demanderait un changement
+  de comportement, hors d'une étape de documentation.
+- **`docs/SECURITY_AUDIT.md` et `docs/FINAL_ACCEPTANCE_AUDIT.md` ne sont pas
+  encore versionnés.**
+- Verdict de préparation : **prêt pour le développement et les tests locaux**, et
+  **prêt pour un usage local routinier sous réserves explicites**, mais **non prêt
+  pour un déploiement réseau ou en production** (absence d'authentification,
+  serveur de développement, `SESSION_COOKIE_SECURE=False`).
 
 ## 5. Commandes d'installation et d'exécution
 

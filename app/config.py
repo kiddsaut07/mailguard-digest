@@ -13,6 +13,7 @@ Valeurs par défaut, alignées sur `03_SECURITY_PRIVACY.md` :
 | `MAILGUARD_MAX_DECOMPRESSED_BYTES`     | 50 MiB      |
 | `MAILGUARD_MAX_ARCHIVE_MEMBERS`        | 100         |
 | `MAILGUARD_MAX_REPORTS_PER_IMPORT`     | 20          |
+| `MAILGUARD_MAX_RECORDS_PER_REPORT`    | 10 000      |
 | `MAILGUARD_MAX_CONTENT_LENGTH`         | 12 MiB      |
 """
 
@@ -24,7 +25,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.core.archive import ImportLimits
+from app.core.archive import ImportLimits, MAX_RECORDS_PAR_RAPPORT
 from app.core.errors import ConfigurationErreur
 
 TAILLE_CLE_SECRETE_MINIMALE = 32
@@ -53,6 +54,7 @@ class Configuration:
     max_decompressed_bytes: int = 50 * 1024 * 1024
     max_archive_members: int = 100
     max_reports_per_import: int = 20
+    max_records_per_report: int = MAX_RECORDS_PAR_RAPPORT
     max_content_length: int = 12 * 1024 * 1024
     debug: bool = False
     ai_active: bool = False
@@ -72,6 +74,7 @@ class Configuration:
             max_decompressed_bytes=self.max_decompressed_bytes,
             max_archive_members=self.max_archive_members,
             max_reports=self.max_reports_per_import,
+            max_records_per_report=self.max_records_per_report,
         )
 
     @property
@@ -82,6 +85,7 @@ class Configuration:
             "Decompressed data": _poids(self.max_decompressed_bytes),
             "Entries per archive": str(self.max_archive_members),
             "Reports per import": str(self.max_reports_per_import),
+            "Records per report": str(self.max_records_per_report),
             "HTTP request": _poids(self.max_content_length),
         }
 
@@ -98,6 +102,7 @@ class Configuration:
             max_decompressed_bytes=256 * LONGUEUR_KB,
             max_archive_members=5,
             max_reports_per_import=2,
+            max_records_per_report=50,
             max_content_length=96 * LONGUEUR_KB,
         )
 
@@ -130,6 +135,12 @@ def charger_configuration(
         ),
         max_reports_per_import=_lire_entier(
             source, "MAILGUARD_MAX_REPORTS_PER_IMPORT", 20, minimum=1
+        ),
+        max_records_per_report=_lire_entier(
+            source,
+            "MAILGUARD_MAX_RECORDS_PER_REPORT",
+            MAX_RECORDS_PAR_RAPPORT,
+            minimum=1,
         ),
         max_content_length=_lire_entier(
             source, "MAILGUARD_MAX_CONTENT_LENGTH", 12 * 1024 * 1024, minimum=1
