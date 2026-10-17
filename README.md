@@ -10,7 +10,7 @@
 
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
 [![Flask](https://img.shields.io/badge/Flask-3.1.x-000000.svg?logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
-[![License](https://img.shields.io/badge/license-Proprietary-grey.svg)](DECISIONS.md)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![No cloud AI](https://img.shields.io/badge/AI-local%20only%20%2F%20disabled%20by%20default-brightgreen.svg)](app/ai/)
 [![Privacy](https://img.shields.io/badge/raw%20XML-never%20stored-success.svg)](app/storage/database.py)
 
@@ -648,6 +648,16 @@ Open the application repository in OpenCode, paste `PROMPT_DE_DEMARRAGE.txt`, ve
 | 🌐 **User interface** | **English** — pages, labels, error messages, findings, briefing |
 | 🧑‍💻 **Source comments & internal docs** | French |
 | 🔑 **Internal identifiers** | Unchanged on purpose — multipart field names, storage keys, finding identifiers |
+
+---
+
+<a id="license"></a>
+
+## 📜 License
+
+**MIT** — see [`LICENSE`](LICENSE).
+
+Copyright (c) 2026 kiddsaut07.
 
 ---
 
